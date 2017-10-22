@@ -81,14 +81,14 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # first layer. collections is used later when assign to target net
     with tf.variable_scope('l1'):
         w1 = tf.get_variable('w1', [state_dim, hidden_nodes], initializer=w_initializer)
-        b1 = tf.get_variable('b1', [1, hidden_nodes], initializer=b_initializer)
-        l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
+        b1 = tf.get_variable('b1', [hidden_nodes], initializer=b_initializer)
 
     # second layer. collections is used later when assign to target net
     with tf.variable_scope('l2'):
         w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=w_initializer)
-        b2 = tf.get_variable('b2', [1, action_dim], initializer=b_initializer)
+        b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer)
         
+    l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
     q_values = tf.matmul(l1, w2) + b2
 
     q_selected_action = \
@@ -98,7 +98,7 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # should only be one line, if target_in is implemented correctly
     loss = tf.reduce_mean(tf.squared_difference(target_in, q_selected_action))
     # learning_rate=0.01
-    optimise_step = tf.train.AdamOptimizer(learning_rate=0.01).minimize(loss)
+    optimise_step = tf.train.AdamOptimizer().minimize(loss)
 
     train_loss_summary_op = tf.summary.scalar("TrainingLoss", loss)
     return state_in, action_in, target_in, q_values, q_selected_action, \
@@ -230,7 +230,8 @@ def get_train_batch(q_values, state_in, replay_buffer):
         else:
             # TO IMPLEMENT: set the target_val to the correct Q value update
             # NOTICE, the `eval()` is critical, it returns real value
-            target_val = reward_batch[i] + GAMMA * (tf.reduce_max(Q_value_batch[i]).eval())
+            # target_val = reward_batch[i] + GAMMA * (tf.reduce_max(Q_value_batch[i]).eval())
+            target_val = reward_batch[i] + GAMMA * np.max(Q_value_batch[i])
             # print('target_val:', target_val)
             target_batch.append(target_val)
     return target_batch, state_batch, action_batch
