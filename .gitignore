@@ -1,0 +1,16 @@
+# Add any directories, files, or patterns you don't want to be tracked by version control
+ass1CNN/src/summaries/*
+ass1CNN/data/mnist/*
+ass1CNN/__pycache__/*
+ass2LSTM/hw2/data2/*
+ass2LSTM/hw2/__pycache__/*
+ass2LSTM/hw2sent/__pycache__/*
+ass2LSTM/hw2sent/tensorboard/*
+ass2LSTM/hw2sent/checkpoints/*
+ass3DQN/tensorboard/*
+*.png
+*.gz
+*.zip
+*.tar
+*.txt
+*.log
