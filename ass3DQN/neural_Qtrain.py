@@ -75,27 +75,34 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # input state. The final layer should be assigned to the variable q_values
     # ...
     # tf.contrib.layers.xavier_initializer(uniform=True)
-    hidden_nodes = 128
+    hidden_nodes = 20
     # hidden_nodes_2 = 64
 
     w_initializer, b_initializer = \
         tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1) 
 
     with tf.variable_scope('l1'):
-        w1 = tf.get_variable('w1', [state_dim, hidden_nodes], initializer=tf.contrib.layers.xavier_initializer(uniform=True))
-        b1 = tf.get_variable('b1', [hidden_nodes], initializer=b_initializer)
+        # w1 = tf.get_variable('w1', [state_dim, hidden_nodes], initializer=tf.contrib.layers.xavier_initializer(uniform=True))
+        w1 = tf.Variable(tf.random_normal([state_dim, hidden_nodes], name = 'w1'))
+        b1 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b1'))
 
     with tf.variable_scope('hidden'):
-        w_hidden = tf.get_variable('w_hidden', [hidden_nodes, hidden_nodes], initializer=w_initializer)
-        b_hidden = tf.get_variable('b_hidden', [hidden_nodes], initializer=b_initializer)
+        # w_hidden = tf.get_variable('w_hidden', [hidden_nodes, hidden_nodes], initializer=w_initializer)
+        w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'))
+        # b_hidden = tf.get_variable('b_hidden', [hidden_nodes], initializer=b_initializer)
+        b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'))
 
     with tf.variable_scope('hidden_2'):
-        w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer)
-        b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer)
+        # w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer)
+        w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'))
+        # b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer)
+        b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'))
 
     with tf.variable_scope('l2'):
-        w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True))
-        b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer)
+        # w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True))
+        w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'))
+        # b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer)
+        b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'))
         
     l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
     l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
@@ -114,7 +121,7 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
         loss += regularization_parameter * tf.reduce_sum(tf.square(w))
 
     # learning_rate=0.001
-    optimise_step = tf.train.RMSPropOptimizer(learning_rate=0.01).minimize(loss)
+    optimise_step = tf.train.AdamOptimizer().minimize(loss)
 
     train_loss_summary_op = tf.summary.scalar("TrainingLoss", loss)
     return state_in, action_in, target_in, q_values, q_selected_action, \
