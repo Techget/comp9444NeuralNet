@@ -18,7 +18,7 @@ TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
 NUM_EPISODES = 100  # Episode limitation
 # 200
-EP_MAX_STEPS = 300  # Step limitation in an episode
+EP_MAX_STEPS = 200  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
 HIDDEN_NODES = 5
@@ -80,37 +80,35 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # input state. The final layer should be assigned to the variable q_values
     # ...
     # tf.contrib.layers.xavier_initializer(uniform=True)
-    hidden_nodes = 128
+    hidden_nodes = 20
     # hidden_nodes_2 = 64
 
     w_initializer, b_initializer = \
         tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1) 
 
-
     # --------- eval net
     with tf.variable_scope('eval_net'):
         c_names = ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
         with tf.variable_scope('l1'):
-            w1 = tf.get_variable('w1', [state_dim, hidden_nodes], initializer=tf.contrib.layers.xavier_initializer(uniform=True), collections=c_names)
-            b1 = tf.get_variable('b1', [hidden_nodes], initializer=b_initializer, collections=c_names)
+            w1 = tf.Variable(tf.random_normal([state_dim, hidden_nodes], name = 'w1'), collections = c_names)
+            b1 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b1'), collections = c_names)
 
         with tf.variable_scope('hidden'):
-            w_hidden = tf.get_variable('w_hidden', [hidden_nodes, hidden_nodes], initializer=w_initializer, collections=c_names)
-            b_hidden = tf.get_variable('b_hidden', [hidden_nodes], initializer=b_initializer, collections=c_names)
+            w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
+            b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
 
         with tf.variable_scope('hidden_2'):
-            w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer, collections=c_names)
-            b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer, collections=c_names)
+            w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'), collections = c_names)
+            b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'), collections = c_names)
 
         with tf.variable_scope('l2'):
-            w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True), collections=c_names)
-            b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer, collections=c_names)
+            w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'), collections = c_names)
+            b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'), collections = c_names)
         
     l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
     l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
     l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
     q_values = tf.matmul(l_hidden_2, w2) + b2
-
 
     # -------------- define tranining steps for q_values
     q_selected_action = \
@@ -123,8 +121,8 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     regularization_parameter = 0.001
     for w in [w1, w_hidden, w_hidden_2, w2]:
         loss += regularization_parameter * tf.reduce_sum(tf.square(w))
-    # learning_rate=0.01
-    optimise_step = tf.train.RMSPropOptimizer(learning_rate=0.001).minimize(loss)
+    
+    optimise_step = tf.train.AdamOptimizer().minimize(loss)
 
     train_loss_summary_op = tf.summary.scalar("TrainingLoss", loss)
 
@@ -133,22 +131,22 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     with tf.variable_scope('target_net'):
         c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
         with tf.variable_scope('l1'):
-            w1 = tf.get_variable('w1', [state_dim, hidden_nodes], initializer=tf.contrib.layers.xavier_initializer(uniform=True), collections=c_names)
-            b1 = tf.get_variable('b1', [hidden_nodes], initializer=b_initializer, collections=c_names)
+            w1 = tf.Variable(tf.random_normal([state_dim, hidden_nodes], name = 'w1'), collections = c_names)
+            b1 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b1'), collections = c_names)
 
         with tf.variable_scope('hidden'):
-            w_hidden = tf.get_variable('w_hidden', [hidden_nodes, hidden_nodes], initializer=w_initializer, collections=c_names)
-            b_hidden = tf.get_variable('b_hidden', [hidden_nodes], initializer=b_initializer, collections=c_names)
+            w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
+            b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
 
         with tf.variable_scope('hidden_2'):
-            w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer, collections=c_names)
-            b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer, collections=c_names)
+            w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'), collections = c_names)
+            b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'), collections = c_names)
 
         with tf.variable_scope('l2'):
-            w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True), collections=c_names)
-            b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer, collections=c_names)
+            w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'), collections = c_names)
+            b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'), collections = c_names)
 
-    l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
+    l1 = tf.nn.relu(tf.matmul(next_state_in, w1) + b1)
     l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
     l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
     q_target = tf.matmul(l_hidden_2, w2) + b2
@@ -210,8 +208,8 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
 
     # if not done:
     #     reward = GAMMA *reward
-    if done:
-        reward = -50
+    # if done:
+    #     reward = -50
 
     one_hot_action = np.zeros(action_dim)
     one_hot_action[action] = 1
@@ -219,7 +217,15 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
     replay_buffer.append((state, one_hot_action, reward, next_state, done))
     # Ensure replay_buffer doesn't grow larger than REPLAY_SIZE
     if len(replay_buffer) > REPLAY_SIZE:
-        replay_buffer.pop(0)
+        i = 0
+        for i in range(len(replay_buffer)):
+            if replay_buffer[i][2] < 200:
+                # print('pop out an entry####: ', replay_buffer[i])
+                replay_buffer.pop(i)
+                break
+        if i == range(len(replay_buffer)):
+            # print('pop out an entry~~~~~~: ', replay_buffer[0])
+            replay_buffer.pop(0)
     return None
 
 
@@ -267,16 +273,30 @@ def get_train_batch(q_values, state_in, replay_buffer):
     target_batch = []
     # instead of using q_values.eval(...), now to target_net for target value
     global q_target
-    Q_value_batch = q_target.eval(feed_dict={
+    global next_state_in
+    Q_batch_target_next_state = q_target.eval(feed_dict={
+        next_state_in: next_state_batch
+    })
+    Q_batch_eval_next_state = q_values.eval(feed_dict={
         state_in: next_state_batch
     })
+    Q_batch_eval_current_state = q_values.eval(feed_dict={
+        state_in: state_batch
+    })
+
+    max_act_for_next = np.argmax(Q_batch_eval_next_state, axis=1)
+    batch_index = np.arange(BATCH_SIZE, dtype=np.int32)
+    Q_value_batch = Q_batch_target_next_state[batch_index, max_act_for_next]
+    # print(Q_value_batch)
+
     for i in range(0, BATCH_SIZE):
         sample_is_done = minibatch[i][4]
         if sample_is_done:
             target_batch.append(reward_batch[i])
         else:
             # TO IMPLEMENT: set the target_val to the correct Q value update
-            target_val = reward_batch[i] + GAMMA * np.max(Q_value_batch[i])
+            # target_val = reward_batch[i] + GAMMA * np.max(Q_value_batch[i])
+            target_val = reward_batch[i] + GAMMA * Q_value_batch[i]
             # print('target_val:', target_val)
             target_batch.append(target_val)
     return target_batch, state_batch, action_batch
@@ -345,11 +365,7 @@ def qtrain(env, state_dim, action_dim,
             if done:
                 break
 
-        if episode < 50:
-            # update target_net after every episode in the very beginning
-            session.run(replace_target_param_op)
-        elif episode % 2 == 0:
-            session.run(replace_target_param_op)
+        session.run(replace_target_param_op)
 
         # self added to monitor the last 100 avg reward
         record_last_hundred_reward.append(ep_reward)
