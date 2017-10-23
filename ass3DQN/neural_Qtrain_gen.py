@@ -17,7 +17,8 @@ BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
 NUM_EPISODES = 100  # Episode limitation
-EP_MAX_STEPS = 200  # Step limitation in an episode
+# 200
+EP_MAX_STEPS = 300  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
 HIDDEN_NODES = 5
@@ -67,6 +68,10 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     state_in = tf.placeholder("float", [None, state_dim])
     action_in = tf.placeholder("float", [None, action_dim])  # one hot
 
+    # used for target net
+    global next_state_in
+    next_state_in = tf.placeholder("float", [None, state_dim])
+
     # q value for the target network for the state, action taken
     target_in = tf.placeholder("float", [None])
 
@@ -81,27 +86,33 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     w_initializer, b_initializer = \
         tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1) 
 
-    with tf.variable_scope('l1'):
-        w1 = tf.get_variable('w1', [state_dim, hidden_nodes], initializer=tf.contrib.layers.xavier_initializer(uniform=True))
-        b1 = tf.get_variable('b1', [hidden_nodes], initializer=b_initializer)
 
-    with tf.variable_scope('hidden'):
-        w_hidden = tf.get_variable('w_hidden', [hidden_nodes, hidden_nodes], initializer=w_initializer)
-        b_hidden = tf.get_variable('b_hidden', [hidden_nodes], initializer=b_initializer)
+    # --------- eval net
+    with tf.variable_scope('eval_net'):
+        c_names = ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
+        with tf.variable_scope('l1'):
+            w1 = tf.get_variable('w1', [state_dim, hidden_nodes], initializer=tf.contrib.layers.xavier_initializer(uniform=True), collections=c_names)
+            b1 = tf.get_variable('b1', [hidden_nodes], initializer=b_initializer, collections=c_names)
 
-    with tf.variable_scope('hidden_2'):
-        w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer)
-        b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer)
+        with tf.variable_scope('hidden'):
+            w_hidden = tf.get_variable('w_hidden', [hidden_nodes, hidden_nodes], initializer=w_initializer, collections=c_names)
+            b_hidden = tf.get_variable('b_hidden', [hidden_nodes], initializer=b_initializer, collections=c_names)
 
-    with tf.variable_scope('l2'):
-        w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True))
-        b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer)
+        with tf.variable_scope('hidden_2'):
+            w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer, collections=c_names)
+            b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer, collections=c_names)
+
+        with tf.variable_scope('l2'):
+            w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True), collections=c_names)
+            b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer, collections=c_names)
         
     l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
     l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
     l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
     q_values = tf.matmul(l_hidden_2, w2) + b2
 
+
+    # -------------- define tranining steps for q_values
     q_selected_action = \
         tf.reduce_sum(tf.multiply(q_values, action_in), reduction_indices=1)
 
@@ -112,11 +123,42 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     regularization_parameter = 0.001
     for w in [w1, w_hidden, w_hidden_2, w2]:
         loss += regularization_parameter * tf.reduce_sum(tf.square(w))
-
-    # learning_rate=0.001
-    optimise_step = tf.train.RMSPropOptimizer(learning_rate=0.01).minimize(loss)
+    # learning_rate=0.01
+    optimise_step = tf.train.RMSPropOptimizer(learning_rate=0.001).minimize(loss)
 
     train_loss_summary_op = tf.summary.scalar("TrainingLoss", loss)
+
+    # ---------- target net(delayed updates)
+    global q_target
+    with tf.variable_scope('target_net'):
+        c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
+        with tf.variable_scope('l1'):
+            w1 = tf.get_variable('w1', [state_dim, hidden_nodes], initializer=tf.contrib.layers.xavier_initializer(uniform=True), collections=c_names)
+            b1 = tf.get_variable('b1', [hidden_nodes], initializer=b_initializer, collections=c_names)
+
+        with tf.variable_scope('hidden'):
+            w_hidden = tf.get_variable('w_hidden', [hidden_nodes, hidden_nodes], initializer=w_initializer, collections=c_names)
+            b_hidden = tf.get_variable('b_hidden', [hidden_nodes], initializer=b_initializer, collections=c_names)
+
+        with tf.variable_scope('hidden_2'):
+            w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer, collections=c_names)
+            b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer, collections=c_names)
+
+        with tf.variable_scope('l2'):
+            w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True), collections=c_names)
+            b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer, collections=c_names)
+
+    l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
+    l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
+    l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
+    q_target = tf.matmul(l_hidden_2, w2) + b2
+
+    # --------- operation to update params of target_net
+    global replace_target_param_op
+    t_params = tf.get_collection('target_net_params')
+    e_params = tf.get_collection('eval_net_params')
+    replace_target_param_op = [tf.assign(t, e) for t, e in zip(t_params, e_params)]
+    
     return state_in, action_in, target_in, q_values, q_selected_action, \
            loss, optimise_step, train_loss_summary_op
 
@@ -165,19 +207,14 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
     # append to buffer
     # one_hot_action = tf.one_hot([action], action_dim)
     # print(one_hot_action.eval()[0])
+
+    # if not done:
+    #     reward = GAMMA *reward
     if done:
         reward = -50
 
     one_hot_action = np.zeros(action_dim)
-    # one_hot_action = [0] * action_dim
     one_hot_action[action] = 1
-        # one_hot_action = one_hot_action.astype(float)
-        # one_hot_action = one_hot_action.reshape((1, action_dim))
-        # print(one_hot_action)
-
-        # print(type(state))
-        # print(type(one_hot_action))
-        # print(one_hot_action.shape)
 
     replay_buffer.append((state, one_hot_action, reward, next_state, done))
     # Ensure replay_buffer doesn't grow larger than REPLAY_SIZE
@@ -192,26 +229,12 @@ def do_train_step(replay_buffer, state_in, action_in, target_in,
     target_batch, state_batch, action_batch = \
         get_train_batch(q_values, state_in, replay_buffer)
 
-    # print(target_batch)
-    # print(state_batch)
-    # print(len(state_batch))
-    # print(np.array(state_batch).dtype)
-    # # print(type(np.array(state_batch)))
-    # print(action_batch)
-    # print(len(action_batch))
-    # print(np.array(action_batch).dtype)
-    # print(type(np.array(action_batch)))
-
     summary,  _ = session.run([train_loss_summary_op, optimise_step], feed_dict={
         target_in: target_batch,
         state_in: state_batch,
         action_in: action_batch
     })
 
-    # print('target_batch: ', target_batch)
-    # print('q_selected_action: ', q_selected_action)
-    # print(target_batch - q_selected_action)
-    # print('loss: ', loss)
     writer.add_summary(summary, batch_presentations_count)
 
 
@@ -242,7 +265,9 @@ def get_train_batch(q_values, state_in, replay_buffer):
     next_state_batch = [data[3] for data in minibatch]
 
     target_batch = []
-    Q_value_batch = q_values.eval(feed_dict={
+    # instead of using q_values.eval(...), now to target_net for target value
+    global q_target
+    Q_value_batch = q_target.eval(feed_dict={
         state_in: next_state_batch
     })
     for i in range(0, BATCH_SIZE):
@@ -251,13 +276,10 @@ def get_train_batch(q_values, state_in, replay_buffer):
             target_batch.append(reward_batch[i])
         else:
             # TO IMPLEMENT: set the target_val to the correct Q value update
-            # NOTICE, the `eval()` is critical, it returns real value
-            # target_val = reward_batch[i] + GAMMA * (tf.reduce_max(Q_value_batch[i]).eval())
             target_val = reward_batch[i] + GAMMA * np.max(Q_value_batch[i])
             # print('target_val:', target_val)
             target_batch.append(target_val)
     return target_batch, state_batch, action_batch
-
 
 def qtrain(env, state_dim, action_dim,
            state_in, action_in, target_in, q_values, q_selected_action,
@@ -266,6 +288,11 @@ def qtrain(env, state_dim, action_dim,
            test_frequency=TEST_FREQUENCY, num_test_eps=NUM_TEST_EPS,
            final_epsilon=FINAL_EPSILON, epsilon_decay_steps=EPSILON_DECAY_STEPS,
            force_test_mode=False, render=True):
+
+    # init, set target_net same as eval_net
+    global replace_target_param_op
+    session.run(replace_target_param_op)
+
     global epsilon
     # Record the number of times we do a training batch, take a step, and
     # the total_reward across all eps
@@ -317,13 +344,20 @@ def qtrain(env, state_dim, action_dim,
 
             if done:
                 break
-        total_reward += ep_reward
+
+        if episode < 50:
+            # update target_net after every episode in the very beginning
+            session.run(replace_target_param_op)
+        elif episode % 2 == 0:
+            session.run(replace_target_param_op)
+
         # self added to monitor the last 100 avg reward
         record_last_hundred_reward.append(ep_reward)
         if len(record_last_hundred_reward) > 100:
             record_last_hundred_reward.pop(0)
         print('last hundred reward avg: ', np.mean(record_last_hundred_reward))
 
+        total_reward += ep_reward
         test_or_train = "test" if test_mode else "train"
         print("end {0} episode {1}, ep reward: {2}, ave reward: {3}, \
             Batch presentations: {4}, epsilon: {5}".format(
