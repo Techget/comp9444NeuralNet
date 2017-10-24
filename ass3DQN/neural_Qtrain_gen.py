@@ -17,12 +17,12 @@ REPLAY_SIZE = 10000  # experience replay buffer size
 BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
-NUM_EPISODES = 100  # Episode limitation
+NUM_EPISODES = 1000  # Episode limitation
 # 200
 EP_MAX_STEPS = 200  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
-NUM_TEST_EPS = 4
-HIDDEN_NODES = 5
+NUM_TEST_EPS = 5
+HIDDEN_NODES = 20
 
 # used to identify environment
 # ENVIRONMENT_NAME = None
@@ -84,7 +84,7 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # input state. The final layer should be assigned to the variable q_values
     # ...
     # tf.contrib.layers.xavier_initializer(uniform=True)
-    hidden_nodes = 20
+    # hidden_nodes = 20
     # hidden_nodes_2 = 64
 
     w_initializer, b_initializer = \
