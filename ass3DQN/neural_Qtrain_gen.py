@@ -117,18 +117,33 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
             w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
             b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
 
-        with tf.variable_scope('hidden_2'):
-            w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'), collections = c_names)
-            b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'), collections = c_names)
+        l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
+        l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
 
-        with tf.variable_scope('l2'):
-            w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'), collections = c_names)
-            b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'), collections = c_names)
+        with tf.variable_scope('Value'):
+            w2_value = tf.Variable(tf.random_normal([hidden_nodes, 1], name = 'w2_value'), collections=c_names)
+            b2_value = tf.Variable(tf.random_normal([1, 1], name = 'b2_value'), collections=c_names)
+            V = tf.matmul(l_hidden, w2_value) + b2_value
+
+        with tf.variable_scope('Advantage'):
+            w2_advantage = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2_advantage'), collections=c_names)
+            b2_advantage = tf.Variable(tf.random_normal([action_dim], name = 'b2_advantage'),collections=c_names)
+            A = tf.matmul(l_hidden, w2_advantage) + b2_advantage
+
+
+        q_values = V + (A - tf.reduce_mean(A, axis=1, keep_dims=True)) # Q = V(s) + A(s,a)
+        # with tf.variable_scope('hidden_2'):
+        #     w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'), collections = c_names)
+        #     b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'), collections = c_names)
+
+        # with tf.variable_scope('l2'):
+        #     w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'), collections = c_names)
+        #     b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'), collections = c_names)    
         
-    l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
-    l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
-    l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
-    q_values = tf.matmul(l_hidden_2, w2) + b2
+    # l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
+    # l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
+    # l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
+    # q_values = tf.matmul(l_hidden_2, w2) + b2
 
     # -------------- define tranining steps for q_values
     q_selected_action = \
@@ -139,7 +154,7 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     loss = tf.reduce_mean(tf.squared_difference(target_in, q_selected_action))
     # regularization for weights
     regularization_parameter = 0.001
-    for w in [w1, w_hidden, w_hidden_2, w2]:
+    for w in [w1, w_hidden, w2_value, w2_advantage]:
         loss += regularization_parameter * tf.reduce_sum(tf.square(w))
     
     optimise_step = tf.train.AdamOptimizer().minimize(loss)
@@ -150,6 +165,21 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     global q_target
     with tf.variable_scope('target_net'):
         c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
+        # with tf.variable_scope('l1'):
+        #     w1 = tf.Variable(tf.random_normal([state_dim, hidden_nodes], name = 'w1'), collections = c_names)
+        #     b1 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b1'), collections = c_names)
+
+        # with tf.variable_scope('hidden'):
+        #     w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
+        #     b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
+
+        # with tf.variable_scope('hidden_2'):
+        #     w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'), collections = c_names)
+        #     b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'), collections = c_names)
+
+        # with tf.variable_scope('l2'):
+        #     w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'), collections = c_names)
+        #     b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'), collections = c_names)
         with tf.variable_scope('l1'):
             w1 = tf.Variable(tf.random_normal([state_dim, hidden_nodes], name = 'w1'), collections = c_names)
             b1 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b1'), collections = c_names)
@@ -158,18 +188,26 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
             w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
             b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
 
-        with tf.variable_scope('hidden_2'):
-            w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'), collections = c_names)
-            b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'), collections = c_names)
+        l1 = tf.nn.relu(tf.matmul(next_state_in, w1) + b1)
+        l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
 
-        with tf.variable_scope('l2'):
-            w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'), collections = c_names)
-            b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'), collections = c_names)
+        with tf.variable_scope('Value'):
+            w2_value = tf.Variable(tf.random_normal([hidden_nodes, 1], name = 'w2_value'), collections=c_names)
+            b2_value = tf.Variable(tf.random_normal([1, 1], name = 'b2_value'), collections=c_names)
+            V = tf.matmul(l_hidden, w2_value) + b2_value
 
-    l1 = tf.nn.relu(tf.matmul(next_state_in, w1) + b1)
-    l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
-    l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
-    q_target = tf.matmul(l_hidden_2, w2) + b2
+        with tf.variable_scope('Advantage'):
+            w2_advantage = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2_advantage'), collections=c_names)
+            b2_advantage = tf.Variable(tf.random_normal([action_dim], name = 'b2_advantage'),collections=c_names)
+            A = tf.matmul(l_hidden, w2_advantage) + b2_advantage
+
+
+        q_target = V + (A - tf.reduce_mean(A, axis=1, keep_dims=True))
+
+    # l1 = tf.nn.relu(tf.matmul(next_state_in, w1) + b1)
+    # l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
+    # l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
+    # q_target = tf.matmul(l_hidden_2, w2) + b2
 
     # --------- operation to update params of target_net
     global replace_target_param_op
