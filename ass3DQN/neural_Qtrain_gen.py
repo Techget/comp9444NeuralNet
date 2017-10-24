@@ -413,7 +413,7 @@ def qtrain(env, state_dim, action_dim,
     record_last_hundred_reward = []
 
     # num_episodes = 1000
-    collect_first_positive_test_result_for_mountain_car = False
+    # collect_first_positive_test_result_for_mountain_car = False
     for episode in range(num_episodes):
         # initialize task
         state = env.reset()
@@ -439,12 +439,12 @@ def qtrain(env, state_dim, action_dim,
             total_steps += 1
 
             # get an action and take a step in the environment
-            if ENVIRONMENT_NAME == 'MountainCar-v0' and collect_first_positive_test_result_for_mountain_car == False:
-                # use merely random to collect the very first success test result
-                action = env.action_space.sample()
-            else:
-                action = get_action(state, state_in, q_values, epsilon, test_mode,
-                                    action_dim)
+            # if ENVIRONMENT_NAME == 'MountainCar-v0' and collect_first_positive_test_result_for_mountain_car == False:
+            #     # use merely random to collect the very first success test result
+            #     action = env.action_space.sample()
+            # else:
+            action = get_action(state, state_in, q_values, epsilon, test_mode,
+                                action_dim)
             env_action = get_env_action(action)
             # print(env_action)
             next_state, reward, done, _ = env.step(env_action)
@@ -454,8 +454,8 @@ def qtrain(env, state_dim, action_dim,
                 if next_state[0] >= 0.5:
                     reward = 100
                     done = True
-                    step = ep_max_steps
-                    collect_first_positive_test_result_for_mountain_car = True
+                    # step = ep_max_steps
+                    # collect_first_positive_test_result_for_mountain_car = True
                 elif next_state[0] >= 0.4 and next_state[1] > 0:
                     reward = 8
                 elif next_state[0] >= 0.3 and next_state[1] > 0:
@@ -464,17 +464,17 @@ def qtrain(env, state_dim, action_dim,
                     reward = 4
                 elif next_state[0] >= 0.0 and next_state[1] > 0:
                     reward = 2
-                elif next_state[0] <= -1.1 and next_state[1] > 0:
-                    reward = 6
+                elif next_state[0] <= -1.1 and next_state[1] > 0: # left-side reward generally smaller than right-side
+                    reward = 5
                 elif next_state[0] <= -1.0 and next_state[1] > 0:
-                    reward = 4
+                    reward = 3
                 elif next_state[0] <= -0.9 and next_state[1] > 0:
-                    reward = 2
+                    reward = 1
                 
-                if collect_first_positive_test_result_for_mountain_car == False:
-                    # it will keep searching until find a correct one
-                    done = False
-                    step = 0
+                # if collect_first_positive_test_result_for_mountain_car == False:
+                #     # it will keep searching until find a correct one
+                #     done = False
+                #     step = 0
             elif ENVIRONMENT_NAME == 'Pendulum-v0':
                 # reward sits between [10,0], now normalize it
                 reward /= 10
