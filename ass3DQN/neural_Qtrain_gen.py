@@ -85,6 +85,9 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     2) You will set `target_in` in `get_train_batch` further down. Probably best
     to implement that before implementing the loss (there are further hints there)
     """
+    # the other function like update_replay_buffer will need these to calculate priority
+    global state_in, action_in, target_in, q_values, q_selected_action
+
     state_in = tf.placeholder("float", [None, state_dim])
     action_in = tf.placeholder("float", [None, action_dim])  # one hot
 
@@ -99,12 +102,6 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # which are the network's esitmation of the Q values for those actions and the
     # input state. The final layer should be assigned to the variable q_values
     # ...
-    # tf.contrib.layers.xavier_initializer(uniform=True)
-    # hidden_nodes = 20
-    # hidden_nodes_2 = 64
-
-    w_initializer, b_initializer = \
-        tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1) 
 
     # --------- eval net
     with tf.variable_scope('eval_net'):
@@ -217,7 +214,7 @@ def get_env_action(action):
     if is_continuous == False:
         return action
     
-    # print(action)
+    # will get action value between (0~ACTION_DIM_FOR_CONTINUOUS) from NN, need to translate that into corresponding action value
     global action_space_low_bound, action_space_high_bound, ACTION_DIM_FOR_CONTINUOUS
 
     length_of_each_part = float((action_space_high_bound - action_space_low_bound)) / float(ACTION_DIM_FOR_CONTINUOUS)
@@ -225,8 +222,7 @@ def get_env_action(action):
 
 
 def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
-                         action_dim,
-                         state_in, action_in, target_in, q_values, q_selected_action):
+                         action_dim):
     """
     Update the replay buffer with provided input in the form:
     (state, one_hot_action, reward, next_state, done)
@@ -238,16 +234,9 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
     # ensure the action is encoded one hot
     # ...
     # append to buffer
-    # one_hot_action = tf.one_hot([action], action_dim)
-    # print(one_hot_action.eval()[0])
+    global state_in, action_in, target_in, q_values, q_selected_action
 
-    # if not done:
-    #     reward = GAMMA *reward
-    # if done:
-    #     reward = -50
-
-
-    ###### now take replay_buffer as heapq
+    ###### now take replay_buffer as heapq / priority queue
 
     one_hot_action = np.zeros(action_dim)
     one_hot_action[action] = 1  
@@ -332,6 +321,7 @@ def get_train_batch(q_values, state_in, replay_buffer):
         high_priority_example_ratio = 0.8
         low_priority_example_ratio = 0.2
     else:
+        # for other environments, make it not that harsh
         high_priority_example_ratio = 0.6
         low_priority_example_ratio = 0.4
 
@@ -378,7 +368,6 @@ def get_train_batch(q_values, state_in, replay_buffer):
     max_act_for_next = np.argmax(Q_batch_eval_next_state, axis=1)
     batch_index = np.arange(BATCH_SIZE, dtype=np.int32)
     Q_value_batch = Q_batch_target_next_state[batch_index, max_act_for_next]
-    # print(Q_value_batch)
 
     for i in range(0, BATCH_SIZE):
         sample_is_done = minibatch[i][4]
@@ -388,7 +377,6 @@ def get_train_batch(q_values, state_in, replay_buffer):
             # TO IMPLEMENT: set the target_val to the correct Q value update
             # target_val = reward_batch[i] + GAMMA * np.max(Q_value_batch[i])
             target_val = reward_batch[i] + GAMMA * Q_value_batch[i]
-            # print('target_val:', target_val)
             target_batch.append(target_val)
     return target_batch, state_batch, action_batch
 
@@ -410,7 +398,7 @@ def qtrain(env, state_dim, action_dim,
     # the total_reward across all eps
     batch_presentations_count = total_steps = total_reward = 0
 
-    record_last_hundred_reward = []
+    # record_last_hundred_reward = []
 
     # num_episodes = 1000
     # collect_first_positive_test_result_for_mountain_car = False
@@ -439,23 +427,16 @@ def qtrain(env, state_dim, action_dim,
             total_steps += 1
 
             # get an action and take a step in the environment
-            # if ENVIRONMENT_NAME == 'MountainCar-v0' and collect_first_positive_test_result_for_mountain_car == False:
-            #     # use merely random to collect the very first success test result
-            #     action = env.action_space.sample()
-            # else:
             action = get_action(state, state_in, q_values, epsilon, test_mode,
                                 action_dim)
             env_action = get_env_action(action)
-            # print(env_action)
             next_state, reward, done, _ = env.step(env_action)
 
-            # specified for game mountainCar
             if ENVIRONMENT_NAME == 'MountainCar-v0':
+                # specified for game mountainCar
                 if next_state[0] >= 0.5:
                     reward = 100
                     done = True
-                    # step = ep_max_steps
-                    # collect_first_positive_test_result_for_mountain_car = True
                 elif next_state[0] >= 0.4 and next_state[1] > 0:
                     reward = 8
                 elif next_state[0] >= 0.3 and next_state[1] > 0:
@@ -464,17 +445,12 @@ def qtrain(env, state_dim, action_dim,
                     reward = 4
                 elif next_state[0] >= 0.0 and next_state[1] > 0:
                     reward = 2
-                elif next_state[0] <= -1.1 and next_state[1] > 0: # left-side reward generally smaller than right-side
-                    reward = 5
-                elif next_state[0] <= -1.0 and next_state[1] > 0:
-                    reward = 3
-                elif next_state[0] <= -0.9 and next_state[1] > 0:
-                    reward = 1
-                
-                # if collect_first_positive_test_result_for_mountain_car == False:
-                #     # it will keep searching until find a correct one
-                #     done = False
-                #     step = 0
+                # do not need left-side reward, it will mislead the model
+                # left-side reward generally smaller than right-side
+                # elif next_state[0] <= -1.1 and next_state[1] > 0: 
+                #     reward = 3
+                # elif next_state[0] <= -1.0 and next_state[1] > 0:
+                #     reward = 1
             elif ENVIRONMENT_NAME == 'Pendulum-v0':
                 # reward sits between [10,0], now normalize it
                 reward /= 10
@@ -486,8 +462,7 @@ def qtrain(env, state_dim, action_dim,
 
             # add the s,a,r,s' samples to the replay_buffer
             update_replay_buffer(replay_buffer, state, action, reward,
-                                 next_state, done, action_dim,
-                                 state_in, action_in, target_in, q_values, q_selected_action) # newly added for priority queue
+                                 next_state, done, action_dim) # newly added for priority queue
             state = next_state
 
             # perform a training step if the replay_buffer has a batch worth of samples
@@ -507,10 +482,10 @@ def qtrain(env, state_dim, action_dim,
             session.run(replace_target_param_op)
 
         # self added to monitor the last 100 avg reward
-        record_last_hundred_reward.append(ep_reward)
-        if len(record_last_hundred_reward) > 100:
-            record_last_hundred_reward.pop(0)
-        print('last hundred reward avg: ', np.mean(record_last_hundred_reward))
+        # record_last_hundred_reward.append(ep_reward)
+        # if len(record_last_hundred_reward) > 100:
+        #     record_last_hundred_reward.pop(0)
+        # print('last hundred reward avg: ', np.mean(record_last_hundred_reward))
 
         total_reward += ep_reward
         test_or_train = "test" if test_mode else "train"

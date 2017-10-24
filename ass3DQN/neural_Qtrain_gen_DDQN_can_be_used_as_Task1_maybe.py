@@ -16,12 +16,13 @@ REPLAY_SIZE = 10000  # experience replay buffer size
 BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
-NUM_EPISODES = 100  # Episode limitation
+# 100
+NUM_EPISODES = 500  # Episode limitation
 # 200
-EP_MAX_STEPS = 300  # Step limitation in an episode
+EP_MAX_STEPS = 200  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
-HIDDEN_NODES = 5
+HIDDEN_NODES = 10
 
 
 def init(env, env_name):
@@ -65,6 +66,8 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     2) You will set `target_in` in `get_train_batch` further down. Probably best
     to implement that before implementing the loss (there are further hints there)
     """
+    # global state_in, action_in, target_in, q_values, q_selected_action
+
     state_in = tf.placeholder("float", [None, state_dim])
     action_in = tf.placeholder("float", [None, action_dim])  # one hot
 
@@ -79,12 +82,6 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # which are the network's esitmation of the Q values for those actions and the
     # input state. The final layer should be assigned to the variable q_values
     # ...
-    # tf.contrib.layers.xavier_initializer(uniform=True)
-    hidden_nodes = 32
-    # hidden_nodes_2 = 64
-
-    w_initializer, b_initializer = \
-        tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1) 
 
     # --------- eval net
     with tf.variable_scope('eval_net'):
@@ -93,23 +90,25 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
             w1 = tf.Variable(tf.random_normal([state_dim, hidden_nodes], name = 'w1'), collections = c_names)
             b1 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b1'), collections = c_names)
 
-        with tf.variable_scope('hidden'):
-            w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
-            b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
+        # with tf.variable_scope('hidden'):
+        #     w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
+        #     b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
 
-        with tf.variable_scope('hidden_2'):
-            w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'), collections = c_names)
-            b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'), collections = c_names)
+        l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
+        # l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
 
-        with tf.variable_scope('l2'):
-            w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'), collections = c_names)
-            b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'), collections = c_names)
-        
-    l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
-    l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
-    l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
-    q_values = tf.matmul(l_hidden_2, w2) + b2
+        with tf.variable_scope('Value'):
+            w2_value = tf.Variable(tf.random_normal([hidden_nodes, 1], name = 'w2_value'), collections=c_names)
+            b2_value = tf.Variable(tf.random_normal([1, 1], name = 'b2_value'), collections=c_names)
+            V = tf.matmul(l1, w2_value) + b2_value
 
+        with tf.variable_scope('Advantage'):
+            w2_advantage = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2_advantage'), collections=c_names)
+            b2_advantage = tf.Variable(tf.random_normal([action_dim], name = 'b2_advantage'),collections=c_names)
+            A = tf.matmul(l1, w2_advantage) + b2_advantage
+
+
+        q_values = V + (A - tf.reduce_mean(A, axis=1, keep_dims=True)) # Q = V(s) + A(s,a)
 
     # -------------- define tranining steps for q_values
     q_selected_action = \
@@ -120,7 +119,8 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     loss = tf.reduce_mean(tf.squared_difference(target_in, q_selected_action))
     # regularization for weights
     regularization_parameter = 0.001
-    for w in [w1, w_hidden, w_hidden_2, w2]:
+    # w_hidden
+    for w in [w1, w2_value, w2_advantage]:
         loss += regularization_parameter * tf.reduce_sum(tf.square(w))
     
     optimise_step = tf.train.AdamOptimizer().minimize(loss)
@@ -135,22 +135,25 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
             w1 = tf.Variable(tf.random_normal([state_dim, hidden_nodes], name = 'w1'), collections = c_names)
             b1 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b1'), collections = c_names)
 
-        with tf.variable_scope('hidden'):
-            w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
-            b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
+        # with tf.variable_scope('hidden'):
+        #     w_hidden = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden'), collections = c_names)
+        #     b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
 
-        with tf.variable_scope('hidden_2'):
-            w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'), collections = c_names)
-            b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'), collections = c_names)
+        l1 = tf.nn.relu(tf.matmul(next_state_in, w1) + b1)
+        # l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
 
-        with tf.variable_scope('l2'):
-            w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'), collections = c_names)
-            b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'), collections = c_names)
+        with tf.variable_scope('Value'):
+            w2_value = tf.Variable(tf.random_normal([hidden_nodes, 1], name = 'w2_value'), collections=c_names)
+            b2_value = tf.Variable(tf.random_normal([1, 1], name = 'b2_value'), collections=c_names)
+            V = tf.matmul(l1, w2_value) + b2_value
 
-    l1 = tf.nn.relu(tf.matmul(next_state_in, w1) + b1)
-    l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
-    l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
-    q_target = tf.matmul(l_hidden_2, w2) + b2
+        with tf.variable_scope('Advantage'):
+            w2_advantage = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2_advantage'), collections=c_names)
+            b2_advantage = tf.Variable(tf.random_normal([action_dim], name = 'b2_advantage'),collections=c_names)
+            A = tf.matmul(l1, w2_advantage) + b2_advantage
+
+
+        q_target = V + (A - tf.reduce_mean(A, axis=1, keep_dims=True))
 
     # --------- operation to update params of target_net
     global replace_target_param_op
@@ -306,9 +309,9 @@ def qtrain(env, state_dim, action_dim,
     # the total_reward across all eps
     batch_presentations_count = total_steps = total_reward = 0
 
-    record_last_hundred_reward = []
+    # record_last_hundred_reward = []
 
-    num_episodes = 500
+    # num_episodes = 500
     for episode in range(num_episodes):
         # initialize task
         state = env.reset()
@@ -356,10 +359,10 @@ def qtrain(env, state_dim, action_dim,
         session.run(replace_target_param_op)
 
         # self added to monitor the last 100 avg reward
-        record_last_hundred_reward.append(ep_reward)
-        if len(record_last_hundred_reward) > 100:
-            record_last_hundred_reward.pop(0)
-        print('last hundred reward avg: ', np.mean(record_last_hundred_reward))
+        # record_last_hundred_reward.append(ep_reward)
+        # if len(record_last_hundred_reward) > 100:
+        #     record_last_hundred_reward.pop(0)
+        # print('last hundred reward avg: ', np.mean(record_last_hundred_reward))
 
         total_reward += ep_reward
         test_or_train = "test" if test_mode else "train"

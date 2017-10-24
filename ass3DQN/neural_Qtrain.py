@@ -286,7 +286,7 @@ def qtrain(env, state_dim, action_dim,
     # the total_reward across all eps
     batch_presentations_count = total_steps = total_reward = 0
 
-    record_last_hundred_reward = []
+    # record_last_hundred_reward = []
 
     num_episodes = 1000
     for episode in range(num_episodes):
@@ -334,10 +334,10 @@ def qtrain(env, state_dim, action_dim,
                 break
         total_reward += ep_reward
         # self added to monitor the last 100 avg reward
-        record_last_hundred_reward.append(ep_reward)
-        if len(record_last_hundred_reward) > 100:
-            record_last_hundred_reward.pop(0)
-        print('last hundred reward avg: ', np.mean(record_last_hundred_reward))
+        # record_last_hundred_reward.append(ep_reward)
+        # if len(record_last_hundred_reward) > 100:
+        #     record_last_hundred_reward.pop(0)
+        # print('last hundred reward avg: ', np.mean(record_last_hundred_reward))
 
         test_or_train = "test" if test_mode else "train"
         print("end {0} episode {1}, ep reward: {2}, ave reward: {3}, \
