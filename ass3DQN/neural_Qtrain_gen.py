@@ -4,6 +4,7 @@ import tensorflow as tf
 import numpy as np
 import random
 import datetime
+import heapq
 
 """
 Hyper Parameters
@@ -22,6 +23,9 @@ EP_MAX_STEPS = 200  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
 HIDDEN_NODES = 5
+
+# used to identify environment
+# ENVIRONMENT_NAME = None
 
 
 def init(env, env_name):
@@ -191,7 +195,8 @@ def get_env_action(action):
 
 
 def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
-                         action_dim):
+                         action_dim,
+                         state_in, action_in, target_in, q_values, q_selected_action):
     """
     Update the replay buffer with provided input in the form:
     (state, one_hot_action, reward, next_state, done)
@@ -211,20 +216,42 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
     # if done:
     #     reward = -50
 
-    one_hot_action = np.zeros(action_dim)
-    one_hot_action[action] = 1
 
-    replay_buffer.append((state, one_hot_action, reward, next_state, done))
+    ###### now take replay_buffer as heapq
+
+    one_hot_action = np.zeros(action_dim)
+    one_hot_action[action] = 1  
+
+    global q_target
+    global next_state_in
+    Q_batch_target_next_state = q_target.eval(feed_dict={
+        next_state_in: [next_state]
+    })
+    Q_batch_eval_next_state = q_values.eval(feed_dict={
+        state_in: [next_state]
+    })
+    # Q_batch_eval_current_state = q_values.eval(feed_dict={
+    #     state_in: [state]
+    # })
+    Q_selected_action_val = q_selected_action.eval(feed_dict={
+        action_in: [one_hot_action],
+        state_in: [state]
+    })
+
+    max_act_for_next = np.argmax(Q_batch_eval_next_state, axis=1)
+    Q_value = Q_batch_target_next_state[0][max_act_for_next[0]]
+    target_val = reward + GAMMA * Q_value
+
+    priority = np.abs(Q_selected_action_val[0] - target_val)
+
+    heapq.heappush(replay_buffer,(priority, state, one_hot_action, reward, next_state, done))
+
+    # replay_buffer.append((state, one_hot_action, reward, next_state, done))
     # Ensure replay_buffer doesn't grow larger than REPLAY_SIZE
     if len(replay_buffer) > REPLAY_SIZE:
-        i = 0
-        for i in range(len(replay_buffer)):
-            if replay_buffer[i][2] < 200:
-                # print('pop out an entry####: ', replay_buffer[i])
-                replay_buffer.pop(i)
-                break
-        if i == range(len(replay_buffer)):
-            # print('pop out an entry~~~~~~: ', replay_buffer[0])
+        try:
+            heapq.heappop(replay_buffer)
+        except ValueError:
             replay_buffer.pop(0)
     return None
 
@@ -263,7 +290,40 @@ def get_train_batch(q_values, state_in, replay_buffer):
     reflect the equation in the middle of slide 12 of Deep RL 1 Lecture
     notes here: https://webcms3.cse.unsw.edu.au/COMP9444/17s2/resources/12494
     """
-    minibatch = random.sample(replay_buffer, BATCH_SIZE)
+    # minibatch = random.sample(replay_buffer, BATCH_SIZE)
+
+    minibatch = []
+    global ENVIRONMENT_NAME
+    high_priority_example_ratio = 0
+    low_priority_example_ratio = 0
+    if ENVIRONMENT_NAME == 'MountainCar-v0':
+        # 80% of minibatch will be filled with data from the top 20% of replay_buffer
+        high_priority_example_ratio = 0.8
+        low_priority_example_ratio = 0.2
+    else:
+        high_priority_example_ratio = 0.6
+        low_priority_example_ratio = 0.4
+
+    if int(len(replay_buffer) * low_priority_example_ratio) < int(BATCH_SIZE * high_priority_example_ratio):
+        temp_high_priority_entries = heapq.nlargest(int(BATCH_SIZE * high_priority_example_ratio), replay_buffer)
+        for e in temp_high_priority_entries:
+            minibatch.append(e[1:])
+
+        temp_normal_priority_entries = random.sample(replay_buffer[:-int(BATCH_SIZE * high_priority_example_ratio)], BATCH_SIZE - int(BATCH_SIZE * high_priority_example_ratio))
+        for e in temp_normal_priority_entries:
+            minibatch.append(e[1:])
+    else:
+        temp_high_priority_entries = random.sample(replay_buffer[-(int(len(minibatch) * low_priority_example_ratio)):], int(BATCH_SIZE * high_priority_example_ratio))
+        for e in temp_high_priority_entries:
+            minibatch.append(e[1:])
+
+        temp_normal_priority_entries = random.sample(replay_buffer[:-(int(len(minibatch) * low_priority_example_ratio))], BATCH_SIZE - int(BATCH_SIZE * high_priority_example_ratio))
+        for e in temp_normal_priority_entries:
+            minibatch.append(e[1:])
+
+    if (len(minibatch) != BATCH_SIZE):
+        print(len(minibatch))
+        sys.exit()
 
     state_batch = [data[0] for data in minibatch]
     action_batch = [data[1] for data in minibatch]
@@ -280,9 +340,9 @@ def get_train_batch(q_values, state_in, replay_buffer):
     Q_batch_eval_next_state = q_values.eval(feed_dict={
         state_in: next_state_batch
     })
-    Q_batch_eval_current_state = q_values.eval(feed_dict={
-        state_in: state_batch
-    })
+    # Q_batch_eval_current_state = q_values.eval(feed_dict={
+    #     state_in: state_batch
+    # })
 
     max_act_for_next = np.argmax(Q_batch_eval_next_state, axis=1)
     batch_index = np.arange(BATCH_SIZE, dtype=np.int32)
@@ -313,6 +373,7 @@ def qtrain(env, state_dim, action_dim,
     global replace_target_param_op
     session.run(replace_target_param_op)
 
+    global ENVIRONMENT_NAME
     global epsilon
     # Record the number of times we do a training batch, take a step, and
     # the total_reward across all eps
@@ -321,6 +382,7 @@ def qtrain(env, state_dim, action_dim,
     record_last_hundred_reward = []
 
     num_episodes = 1000
+    collect_first_positive_test_result_for_mountain_car = False
     for episode in range(num_episodes):
         # initialize task
         state = env.reset()
@@ -337,14 +399,51 @@ def qtrain(env, state_dim, action_dim,
         if test_mode: print("Test mode (epsilon set to 0.0)")
 
         ep_reward = 0
-        for step in range(ep_max_steps):
+        # for step in range(ep_max_steps):
+        step = 0
+        
+        while step <= ep_max_steps:
+            step += 1
+
             total_steps += 1
 
             # get an action and take a step in the environment
-            action = get_action(state, state_in, q_values, epsilon, test_mode,
-                                action_dim)
+            if ENVIRONMENT_NAME == 'MountainCar-v0' and collect_first_positive_test_result_for_mountain_car == False:
+                # use merely random to collect the very first success test result
+                action = env.action_space.sample()
+            else:
+                action = get_action(state, state_in, q_values, epsilon, test_mode,
+                                    action_dim)
             env_action = get_env_action(action)
             next_state, reward, done, _ = env.step(env_action)
+
+            # specified for game mountainCar
+            if ENVIRONMENT_NAME == 'MountainCar-v0':
+                if next_state[0] >= 0.5:
+                    reward = 100
+                    done = True
+                    step = ep_max_steps
+                    collect_first_positive_test_result_for_mountain_car = True
+                elif next_state[0] >= 0.4 and next_state[1] > 0:
+                    reward = 8
+                elif next_state[0] >= 0.3 and next_state[1] > 0:
+                    reward = 6
+                elif next_state[0] >= 0.2 and next_state[1] > 0:
+                    reward = 4
+                elif next_state[0] >= 0.0 and next_state[1] > 0:
+                    reward = 2
+                elif next_state[0] <= -1.1 and next_state[1] > 0:
+                    reward = 6
+                elif next_state[0] <= -1.0 and next_state[1] > 0:
+                    reward = 4
+                elif next_state[0] <= -0.9 and next_state[1] > 0:
+                    reward = 2
+                
+                if collect_first_positive_test_result_for_mountain_car == False:
+                    # it will keep searching until find a correct one
+                    done = False
+                    step = 0
+
             ep_reward += reward
 
             # display the updated environment
@@ -352,7 +451,8 @@ def qtrain(env, state_dim, action_dim,
 
             # add the s,a,r,s' samples to the replay_buffer
             update_replay_buffer(replay_buffer, state, action, reward,
-                                 next_state, done, action_dim)
+                                 next_state, done, action_dim,
+                                 state_in, action_in, target_in, q_values, q_selected_action) # newly added for priority queue
             state = next_state
 
             # perform a training step if the replay_buffer has a batch worth of samples
@@ -365,7 +465,10 @@ def qtrain(env, state_dim, action_dim,
             if done:
                 break
 
-        session.run(replace_target_param_op)
+        if episode < 50 and episode % 2 == 0:
+            session.run(replace_target_param_op)
+        else:
+            session.run(replace_target_param_op)
 
         # self added to monitor the last 100 avg reward
         record_last_hundred_reward.append(ep_reward)
@@ -383,11 +486,14 @@ def qtrain(env, state_dim, action_dim,
 
 
 def setup():
-    default_env_name = 'CartPole-v0'
-    # default_env_name = 'MountainCar-v0'
+    # default_env_name = 'CartPole-v0'
+    default_env_name = 'MountainCar-v0'
     # default_env_name = 'Pendulum-v0'
     # if env_name provided as cmd line arg, then use that
     env_name = sys.argv[1] if len(sys.argv) > 1 else default_env_name
+    global ENVIRONMENT_NAME
+    ENVIRONMENT_NAME = env_name
+
     env = gym.make(env_name)
     state_dim, action_dim = init(env, env_name)
     network_vars = get_network(state_dim, action_dim)
@@ -397,7 +503,7 @@ def setup():
 
 def main():
     env, state_dim, action_dim, network_vars = setup()
-    qtrain(env, state_dim, action_dim, *network_vars, render=False)
+    qtrain(env, state_dim, action_dim, *network_vars, render=True)
 
 
 if __name__ == "__main__":
