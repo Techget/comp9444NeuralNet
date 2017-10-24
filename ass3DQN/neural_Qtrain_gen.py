@@ -13,7 +13,8 @@ GAMMA = 0.9  # discount factor for target Q
 INITIAL_EPSILON = 0.6  # starting value of epsilon
 FINAL_EPSILON = 0.1  # final value of epsilon
 EPSILON_DECAY_STEPS = 100
-REPLAY_SIZE = 10000  # experience replay buffer size
+# 10000
+REPLAY_SIZE = 15000  # experience replay buffer size
 BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
@@ -21,9 +22,10 @@ NUM_EPISODES = 1000  # Episode limitation
 # 200
 EP_MAX_STEPS = 200  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
-NUM_TEST_EPS = 5
-HIDDEN_NODES = 20
+NUM_TEST_EPS = 4
+HIDDEN_NODES = 16
 
+ACTION_DIM_FOR_CONTINUOUS = 20
 # used to identify environment
 # ENVIRONMENT_NAME = None
 
@@ -52,8 +54,22 @@ def init(env, env_name):
     replay_buffer = []
     epsilon = INITIAL_EPSILON
 
+
+    global is_continuous 
+    action_dim = ACTION_DIM_FOR_CONTINUOUS
+    if type(env.action_space).__name__ == 'Box':
+        global action_space_low_bound, action_space_high_bound
+        action_space_low_bound = env.action_space.low[0]
+        action_space_high_bound = env.action_space.high[0]
+
+        is_continuous = True
+        action_dim = ACTION_DIM_FOR_CONTINUOUS
+    else:
+        # type(env.action_space).__name__ == 'Discrete'
+        is_continuous = False
+        action_dim = env.action_space.n
+
     state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
     return state_dim, action_dim
 
 
@@ -191,7 +207,15 @@ def get_env_action(action):
     Modify for continous action spaces that you have discretised, see hints in
     `init()`
     """
-    return action
+    global is_continuous
+    if is_continuous == False:
+        return action
+    
+    # print(action)
+    global action_space_low_bound, action_space_high_bound, ACTION_DIM_FOR_CONTINUOUS
+
+    length_of_each_part = float((action_space_high_bound - action_space_low_bound)) / float(ACTION_DIM_FOR_CONTINUOUS)
+    return np.array([action_space_low_bound + length_of_each_part * action])
 
 
 def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
@@ -252,6 +276,7 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
         try:
             heapq.heappop(replay_buffer)
         except ValueError:
+            # this may happen when the priorities are same
             replay_buffer.pop(0)
     return None
 
@@ -381,7 +406,7 @@ def qtrain(env, state_dim, action_dim,
 
     record_last_hundred_reward = []
 
-    num_episodes = 1000
+    # num_episodes = 1000
     collect_first_positive_test_result_for_mountain_car = False
     for episode in range(num_episodes):
         # initialize task
@@ -415,6 +440,7 @@ def qtrain(env, state_dim, action_dim,
                 action = get_action(state, state_in, q_values, epsilon, test_mode,
                                     action_dim)
             env_action = get_env_action(action)
+            # print(env_action)
             next_state, reward, done, _ = env.step(env_action)
 
             # specified for game mountainCar
@@ -443,6 +469,9 @@ def qtrain(env, state_dim, action_dim,
                     # it will keep searching until find a correct one
                     done = False
                     step = 0
+            elif ENVIRONMENT_NAME == 'Pendulum-v0':
+                # reward sits between [10,0], now normalize it
+                reward /= 10
 
             ep_reward += reward
 
@@ -465,6 +494,7 @@ def qtrain(env, state_dim, action_dim,
             if done:
                 break
 
+        # update the parameter of target_net
         if episode < 50 and episode % 2 == 0:
             session.run(replace_target_param_op)
         else:
