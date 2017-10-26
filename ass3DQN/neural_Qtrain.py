@@ -16,11 +16,11 @@ REPLAY_SIZE = 10000  # experience replay buffer size
 BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
-NUM_EPISODES = 100  # Episode limitation
+NUM_EPISODES = 500  # Episode limitation
 EP_MAX_STEPS = 200  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
-HIDDEN_NODES = 5
+HIDDEN_NODES = 20
 
 
 def init(env, env_name):
@@ -75,7 +75,7 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # input state. The final layer should be assigned to the variable q_values
     # ...
     # tf.contrib.layers.xavier_initializer(uniform=True)
-    hidden_nodes = 20
+    # hidden_nodes = 16
     # hidden_nodes_2 = 64
 
     # w_initializer, b_initializer = \
@@ -172,8 +172,8 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
     # append to buffer
     # one_hot_action = tf.one_hot([action], action_dim)
     # print(one_hot_action.eval()[0])
-    if done:
-        reward = -50
+    # if done:
+    #     reward = -50
 
     one_hot_action = np.zeros(action_dim)
     # one_hot_action = [0] * action_dim
@@ -288,7 +288,7 @@ def qtrain(env, state_dim, action_dim,
 
     # record_last_hundred_reward = []
 
-    num_episodes = 1000
+    # num_episodes = 1000
     for episode in range(num_episodes):
         # initialize task
         state = env.reset()

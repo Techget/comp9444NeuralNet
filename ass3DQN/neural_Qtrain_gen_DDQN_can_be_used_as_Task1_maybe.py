@@ -221,15 +221,15 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
     replay_buffer.append((state, one_hot_action, reward, next_state, done))
     # Ensure replay_buffer doesn't grow larger than REPLAY_SIZE
     if len(replay_buffer) > REPLAY_SIZE:
-        i = 0
-        for i in range(len(replay_buffer)):
-            if replay_buffer[i][2] < 200:
-                # print('pop out an entry####: ', replay_buffer[i])
-                replay_buffer.pop(i)
-                break
-        if i == range(len(replay_buffer)):
-            # print('pop out an entry~~~~~~: ', replay_buffer[0])
-            replay_buffer.pop(0)
+        # i = 0
+        # for i in range(len(replay_buffer)):
+        #     if replay_buffer[i][2] < 200:
+        #         # print('pop out an entry####: ', replay_buffer[i])
+        #         replay_buffer.pop(i)
+        #         break
+        # if i == range(len(replay_buffer)):
+        #     # print('pop out an entry~~~~~~: ', replay_buffer[0])
+        replay_buffer.pop(0)    
     return None
 
 
