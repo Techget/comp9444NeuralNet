@@ -507,8 +507,8 @@ def qtrain(env, state_dim, action_dim,
 
 
 def setup():
-    # default_env_name = 'CartPole-v0'
-    default_env_name = 'MountainCar-v0'
+    default_env_name = 'CartPole-v0'
+    # default_env_name = 'MountainCar-v0'
     # default_env_name = 'Pendulum-v0'
     # if env_name provided as cmd line arg, then use that
     env_name = sys.argv[1] if len(sys.argv) > 1 else default_env_name
