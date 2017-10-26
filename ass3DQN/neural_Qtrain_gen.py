@@ -54,6 +54,8 @@ def init(env, env_name):
     replay_buffer = []
     epsilon = INITIAL_EPSILON
 
+    global ENVIRONMENT_NAME
+    ENVIRONMENT_NAME = env_name
 
     global is_continuous 
     action_dim = ACTION_DIM_FOR_CONTINUOUS
@@ -115,6 +117,8 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
             b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
 
         l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
+        # keep_prob = 0.9
+        # l1_dropout = tf.nn.dropout(l1, keep_prob)
         l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
 
         with tf.variable_scope('Value'):
@@ -159,6 +163,8 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
             b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'), collections = c_names)
 
         l1 = tf.nn.relu(tf.matmul(next_state_in, w1) + b1)
+        # keep_prob = 0.9
+        # l1_dropout = tf.nn.dropout(l1, keep_prob)
         l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
 
         with tf.variable_scope('Value'):
@@ -263,7 +269,11 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
 
     priority = np.abs(Q_selected_action_val[0] - target_val)
 
-    heapq.heappush(replay_buffer,(priority, state, one_hot_action, reward, next_state, done))
+    try:
+        heapq.heappush(replay_buffer,(priority, state, one_hot_action, reward, next_state, done))
+    except ValueError:
+        if priority > 0:
+            replay_buffer.append((priority, state, one_hot_action, reward, next_state, done))
 
     # replay_buffer.append((state, one_hot_action, reward, next_state, done))
     # Ensure replay_buffer doesn't grow larger than REPLAY_SIZE
@@ -476,7 +486,7 @@ def qtrain(env, state_dim, action_dim,
                 break
 
         # update the parameter of target_net
-        if episode < 50 and episode % 2 == 0:
+        if episode > 50 and episode % 2 == 0:
             session.run(replace_target_param_op)
         else:
             session.run(replace_target_param_op)
@@ -502,8 +512,6 @@ def setup():
     # default_env_name = 'Pendulum-v0'
     # if env_name provided as cmd line arg, then use that
     env_name = sys.argv[1] if len(sys.argv) > 1 else default_env_name
-    global ENVIRONMENT_NAME
-    ENVIRONMENT_NAME = env_name
 
     env = gym.make(env_name)
     state_dim, action_dim = init(env, env_name)

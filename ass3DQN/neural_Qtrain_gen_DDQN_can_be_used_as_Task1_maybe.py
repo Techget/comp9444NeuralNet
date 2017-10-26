@@ -221,14 +221,6 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
     replay_buffer.append((state, one_hot_action, reward, next_state, done))
     # Ensure replay_buffer doesn't grow larger than REPLAY_SIZE
     if len(replay_buffer) > REPLAY_SIZE:
-        # i = 0
-        # for i in range(len(replay_buffer)):
-        #     if replay_buffer[i][2] < 200:
-        #         # print('pop out an entry####: ', replay_buffer[i])
-        #         replay_buffer.pop(i)
-        #         break
-        # if i == range(len(replay_buffer)):
-        #     # print('pop out an entry~~~~~~: ', replay_buffer[0])
         replay_buffer.pop(0)    
     return None
 
@@ -329,7 +321,7 @@ def qtrain(env, state_dim, action_dim,
 
         ep_reward = 0
         for step in range(ep_max_steps):
-            total_steps += 1
+            # total_steps += 1
 
             # get an action and take a step in the environment
             action = get_action(state, state_in, q_values, epsilon, test_mode,
@@ -348,6 +340,7 @@ def qtrain(env, state_dim, action_dim,
 
             # perform a training step if the replay_buffer has a batch worth of samples
             if (len(replay_buffer) > BATCH_SIZE):
+                total_steps += 1
                 do_train_step(replay_buffer, state_in, action_in, target_in,
                               q_values, q_selected_action, loss, optimise_step,
                               train_loss_summary_op, batch_presentations_count)
@@ -356,7 +349,11 @@ def qtrain(env, state_dim, action_dim,
             if done:
                 break
 
-        session.run(replace_target_param_op)
+        if total_steps < 1000 and total_steps % 20 == 0:
+            session.run(replace_target_param_op)
+        elif total_steps % 100 ==0:
+            session.run(replace_target_param_op)
+
 
         # self added to monitor the last 100 avg reward
         # record_last_hundred_reward.append(ep_reward)

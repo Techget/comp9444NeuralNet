@@ -20,7 +20,7 @@ NUM_EPISODES = 500  # Episode limitation
 EP_MAX_STEPS = 200  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
-HIDDEN_NODES = 20
+HIDDEN_NODES = 32
 
 
 def init(env, env_name):
@@ -92,22 +92,37 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
         # b_hidden = tf.get_variable('b_hidden', [hidden_nodes], initializer=b_initializer)
         b_hidden = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden'))
 
-    with tf.variable_scope('hidden_2'):
-        # w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer)
-        w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'))
-        # b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer)
-        b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'))
+    # with tf.variable_scope('hidden_2'):
+    #     # w_hidden_2 = tf.get_variable('w_hidden_2', [hidden_nodes, hidden_nodes], initializer=w_initializer)
+    #     w_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes, hidden_nodes], name = 'w_hidden_2'))
+    #     # b_hidden_2 = tf.get_variable('b_hidden_2', [hidden_nodes], initializer=b_initializer)
+    #     b_hidden_2 = tf.Variable(tf.random_normal([hidden_nodes], name = 'b_hidden_2'))
 
-    with tf.variable_scope('l2'):
-        # w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True))
-        w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'))
-        # b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer)
-        b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'))
-        
+    # with tf.variable_scope('l2'):
+    #     # w2 = tf.get_variable('w2', [hidden_nodes, action_dim], initializer=tf.contrib.layers.xavier_initializer(uniform=True))
+    #     w2 = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2'))
+    #     # b2 = tf.get_variable('b2', [action_dim], initializer=b_initializer)
+    #     b2 = tf.Variable(tf.random_normal([action_dim], name = 'b2'))
+
+
     l1 = tf.nn.relu(tf.matmul(state_in, w1) + b1)
     l_hidden = tf.nn.relu(tf.matmul(l1, w_hidden) + b_hidden)
-    l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
-    q_values = tf.matmul(l_hidden_2, w2) + b2
+
+    with tf.variable_scope('Value'):
+        w2_value = tf.Variable(tf.random_normal([hidden_nodes, 1], name = 'w2_value'))
+        b2_value = tf.Variable(tf.random_normal([1, 1], name = 'b2_value'))
+        V = tf.matmul(l_hidden, w2_value) + b2_value
+
+    with tf.variable_scope('Advantage'):
+        w2_advantage = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2_advantage'))
+        b2_advantage = tf.Variable(tf.random_normal([action_dim], name = 'b2_advantage'))
+        A = tf.matmul(l_hidden, w2_advantage) + b2_advantage
+
+
+    q_values = V + (A - tf.reduce_mean(A, axis=1, keep_dims=True)) # Q = V(s) + A(s,a)      
+    
+    # l_hidden_2 = tf.nn.relu(tf.matmul(l_hidden, w_hidden_2) + b_hidden_2)
+    # q_values = tf.matmul(l_hidden, w2) + b2
 
     q_selected_action = \
         tf.reduce_sum(tf.multiply(q_values, action_in), reduction_indices=1)
@@ -117,7 +132,8 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     loss = tf.reduce_mean(tf.squared_difference(target_in, q_selected_action))
     # regularization for weights
     regularization_parameter = 0.001
-    for w in [w1, w_hidden, w_hidden_2, w2]:
+    # , w_hidden_2
+    for w in [w1, w_hidden, w2_value, w2_advantage]:
         loss += regularization_parameter * tf.reduce_sum(tf.square(w))
 
     # learning_rate=0.001
@@ -176,20 +192,12 @@ def update_replay_buffer(replay_buffer, state, action, reward, next_state, done,
     #     reward = -50
 
     one_hot_action = np.zeros(action_dim)
-    # one_hot_action = [0] * action_dim
     one_hot_action[action] = 1
-        # one_hot_action = one_hot_action.astype(float)
-        # one_hot_action = one_hot_action.reshape((1, action_dim))
-        # print(one_hot_action)
-
-        # print(type(state))
-        # print(type(one_hot_action))
-        # print(one_hot_action.shape)
 
     replay_buffer.append((state, one_hot_action, reward, next_state, done))
     # Ensure replay_buffer doesn't grow larger than REPLAY_SIZE
     if len(replay_buffer) > REPLAY_SIZE:
-        replay_buffer.pop(0)
+        replay_buffer.pop(0)    
     return None
 
 
@@ -199,26 +207,12 @@ def do_train_step(replay_buffer, state_in, action_in, target_in,
     target_batch, state_batch, action_batch = \
         get_train_batch(q_values, state_in, replay_buffer)
 
-    # print(target_batch)
-    # print(state_batch)
-    # print(len(state_batch))
-    # print(np.array(state_batch).dtype)
-    # # print(type(np.array(state_batch)))
-    # print(action_batch)
-    # print(len(action_batch))
-    # print(np.array(action_batch).dtype)
-    # print(type(np.array(action_batch)))
-
     summary,  _ = session.run([train_loss_summary_op, optimise_step], feed_dict={
         target_in: target_batch,
         state_in: state_batch,
         action_in: action_batch
     })
 
-    # print('target_batch: ', target_batch)
-    # print('q_selected_action: ', q_selected_action)
-    # print(target_batch - q_selected_action)
-    # print('loss: ', loss)
     writer.add_summary(summary, batch_presentations_count)
 
 
@@ -266,10 +260,7 @@ def get_train_batch(q_values, state_in, replay_buffer):
             target_batch.append(reward_batch[i])
         else:
             # TO IMPLEMENT: set the target_val to the correct Q value update
-            # NOTICE, the `eval()` is critical, it returns real value
-            # target_val = reward_batch[i] + GAMMA * (tf.reduce_max(Q_value_batch[i]).eval())
             target_val = reward_batch[i] + GAMMA * np.max(Q_value_batch[i])
-            # print('target_val:', target_val)
             target_batch.append(target_val)
     return target_batch, state_batch, action_batch
 
@@ -332,6 +323,7 @@ def qtrain(env, state_dim, action_dim,
 
             if done:
                 break
+
         total_reward += ep_reward
         # self added to monitor the last 100 avg reward
         # record_last_hundred_reward.append(ep_reward)
