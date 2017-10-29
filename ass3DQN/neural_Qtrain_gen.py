@@ -25,6 +25,7 @@ EP_MAX_STEPS = 200  # Step limitation in an episode
 NUM_TEST_EPS = 4
 HIDDEN_NODES = 16
 
+# used in transform continous action space to discrete
 ACTION_DIM_FOR_CONTINUOUS = 20
 # used to identify environment
 # ENVIRONMENT_NAME = None
@@ -131,7 +132,6 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
             b2_advantage = tf.Variable(tf.random_normal([action_dim], name = 'b2_advantage'),collections=c_names)
             A = tf.matmul(l_hidden, w2_advantage) + b2_advantage
 
-
         q_values = V + (A - tf.reduce_mean(A, axis=1, keep_dims=True)) # Q = V(s) + A(s,a)
 
     # -------------- define tranining steps for q_values
@@ -176,7 +176,6 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
             w2_advantage = tf.Variable(tf.random_normal([hidden_nodes, action_dim], name = 'w2_advantage'), collections=c_names)
             b2_advantage = tf.Variable(tf.random_normal([action_dim], name = 'b2_advantage'),collections=c_names)
             A = tf.matmul(l_hidden, w2_advantage) + b2_advantage
-
 
         q_target = V + (A - tf.reduce_mean(A, axis=1, keep_dims=True))
 
@@ -352,9 +351,9 @@ def get_train_batch(q_values, state_in, replay_buffer):
         for e in temp_normal_priority_entries:
             minibatch.append(e[1:])
 
-    if (len(minibatch) != BATCH_SIZE):
-        print(len(minibatch))
-        sys.exit()
+    # if (len(minibatch) != BATCH_SIZE):
+    #     print(len(minibatch))
+    #     sys.exit()
 
     state_batch = [data[0] for data in minibatch]
     action_batch = [data[1] for data in minibatch]
@@ -455,6 +454,8 @@ def qtrain(env, state_dim, action_dim,
                     reward = 4
                 elif next_state[0] >= 0.0 and next_state[1] > 0:
                     reward = 2
+                elif next_state[0] >= -0.1 and next_state[1] > 0:
+                    reward = 1
                 # do not need left-side reward, it will mislead the model
                 # left-side reward generally smaller than right-side
                 # elif next_state[0] <= -1.1 and next_state[1] > 0: 
